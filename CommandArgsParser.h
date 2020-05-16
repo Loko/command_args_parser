@@ -34,6 +34,10 @@ public:
 	CommandArgVariable(const char * pVariableName, const CommandArgVariableType::Type nType, const bool defaultBoolValue, const uint8_t flags = 0);
 	CommandArgVariable(const char * pVariableName, const CommandArgVariableType::Type nType, const float defaultFloatValue, const uint8_t flags = 0);
 	CommandArgVariable(const char * pVariableName, const CommandArgVariableType::Type nType, const char * defaultCStringValue, const uint8_t flags = 0);
+	CommandArgVariable(const uint32_t variableHash, const CommandArgVariableType::Type nType, const int defaultIntValue, const uint8_t flags = 0);
+	CommandArgVariable(const uint32_t variableHash, const CommandArgVariableType::Type nType, const bool defaultBoolValue, const uint8_t flags = 0);
+	CommandArgVariable(const uint32_t variableHash, const CommandArgVariableType::Type nType, const float defaultFloatValue, const uint8_t flags = 0);
+	CommandArgVariable(const uint32_t variableHash, const CommandArgVariableType::Type nType, const char * defaultCStringValue, const uint8_t flags = 0);
 
 	int GetInt() const;
 	float GetFloat() const;
@@ -57,6 +61,13 @@ private:
 	int8_t m_Type;		// CommandArgType::Type
 	uint8_t m_Flags;	// CommandArgVariableFlags::Flags
 };
+
+#define VALIDATE_HASH_COMMAND ( 0 )
+#if VALIDATE_HASH_COMMAND
+#define HASH_COMMAND_VARIABLE( str, hashValue ) CommandArgsMgr::ValidateHashCommandValue((str), (hashValue))
+#else
+#define HASH_COMMAND_VARIABLE( str, hashValue ) ( hashValue )
+#endif //
 
 // If enabled, we make a deep copy of the input string
 // The advantage of doing this is that after making IncrementToken 
@@ -101,14 +112,17 @@ class RegisterCommandArgFunctionAuto {
 public:
 	RegisterCommandArgFunctionAuto() = delete;
 	RegisterCommandArgFunctionAuto(const char * pCommandName, const ConsoleCommandFunc pFunc);
+	RegisterCommandArgFunctionAuto(const uint32_t commandHashValue, const ConsoleCommandFunc pFunc);
 };
 
-#define CONSOLE_COMMAND_FUNCTION_MANUAL_REGISTRATION( commandName ) int Command_##commandName
-#define REGISTER_CONSOLE_COMMAND_FUNCTION( commandName ) CommandLineArgs::RegisterCommandArgFunction( #commandName, &Command_##commandName )
 
-#define CONSOLE_COMMAND_FUNCTION( commandName )	int Command_##commandName(CommandArgsParser & ); \
-												RegisterCommandArgFunctionAuto s_auto##commandName( #commandName, &Command_##commandName); \
-												int Command_##commandName
+#define CONSOLE_COMMAND_FUNCTION_NAME( commandName )	int Command_##commandName(CommandArgsParser & ); \
+														RegisterCommandArgFunctionAuto s_auto##commandName(#commandName, &Command_##commandName); \
+														int Command_##commandName
+
+#define CONSOLE_COMMAND_FUNCTION_HASH( commandName, hashValue )	int Command_##commandName(CommandArgsParser & ); \
+																RegisterCommandArgFunctionAuto s_auto##commandName(hashValue, &Command_##commandName); \
+																int Command_##commandName
 
 namespace CommandArgEntryType {
 	enum Type {
@@ -145,13 +159,16 @@ class CommandArgsMgr {
 public:
 
 	static CommandArgsMgr & GetInstance() { return ms_Instance; }
-	static uint32_t HashCommandLineArg(const char * pArgName);
+	static uint32_t HashCommandLineArg(const char * pString);
 	static uint32_t HashCommandLineArg_StartEnd(const char * pStart, const char * pEnd);
+	static uint32_t ValidateHashCommandValue(const char * pString, const uint32_t precalculatedHashValue);
 	static char * FindFirstNonWhitespaceCharacter(const char * pString, const char * pWhitespaceCharacters = CommandArgsParser::ms_DefaultDelimeters);
 	static char * FindFirstWhitespaceCharacterAfterFirstToken(const char * pString, const char * pWhitespaceCharacters = CommandArgsParser::ms_DefaultDelimeters);
 
-	uint32_t RegisterCommandArgVariable(const char * pArgName, CommandArgVariable * ptr);
-	void RegisterCommandArgFunction(const char * pArgName, const ConsoleCommandFunc pFunc);
+	void RegisterCommandArgVariableByName(const char * pArgName, CommandArgVariable * ptr);
+	void RegisterCommandArgVariableByHash(const uint32_t argHashValue, CommandArgVariable * ptr);
+	void RegisterCommandArgFunctionByName(const char * pArgName, const ConsoleCommandFunc pFunc);
+	void RegisterCommandArgFunctionByHash(const uint32_t commandHashValue, const ConsoleCommandFunc pFunc);
 
 	int GetIntegerForKey(const uint32_t key);
 	float GetFloatForKey(const uint32_t key);
@@ -160,9 +177,9 @@ public:
 	void SetupAllCommandArgs(const int argc, char * argv[]);
 	int Execute(const char * pCommand);
 
+private:
 	bool FindCommandArgEntry(std::unordered_map<uint32_t, CommandArgEntry>::iterator & inOutIterator, const uint32_t key);
 
-private:
 	std::unordered_map<uint32_t, CommandArgEntry> m_CommandArgsMap;
 
 	static CommandArgsMgr ms_Instance;

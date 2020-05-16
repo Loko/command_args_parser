@@ -6,7 +6,7 @@
 CommandArgVariable::CommandArgVariable(const char * pVariableName, const CommandArgVariableType::Type nType, const int defaultIntValue, const uint8_t flags) : m_Flags(flags) {
 	assert(nType == CommandArgVariableType::Integer);
 	memset(&m_Data, 0, sizeof(m_Data));
-	CommandArgsMgr::GetInstance().RegisterCommandArgVariable(pVariableName, this);
+	CommandArgsMgr::GetInstance().RegisterCommandArgVariableByName(pVariableName, this);
 	m_Type = nType;
 	m_Data.m_AsInt = defaultIntValue;
 }
@@ -14,7 +14,7 @@ CommandArgVariable::CommandArgVariable(const char * pVariableName, const Command
 CommandArgVariable::CommandArgVariable(const char * pVariableName, const CommandArgVariableType::Type nType, const bool defaultBoolValue, const uint8_t flags) : m_Flags(flags) {
 	assert(nType == CommandArgVariableType::Boolean);
 	memset(&m_Data, 0, sizeof(m_Data));
-	CommandArgsMgr::GetInstance().RegisterCommandArgVariable(pVariableName, this);
+	CommandArgsMgr::GetInstance().RegisterCommandArgVariableByName(pVariableName, this);
 	m_Type = nType;
 	m_Data.m_AsBool = defaultBoolValue;
 }
@@ -22,7 +22,7 @@ CommandArgVariable::CommandArgVariable(const char * pVariableName, const Command
 CommandArgVariable::CommandArgVariable(const char * pVariableName, const CommandArgVariableType::Type nType, const float defaultFloatValue, const uint8_t flags) : m_Flags(flags) {
 	assert(nType == CommandArgVariableType::Float);
 	memset(&m_Data, 0, sizeof(m_Data));
-	CommandArgsMgr::GetInstance().RegisterCommandArgVariable(pVariableName, this);
+	CommandArgsMgr::GetInstance().RegisterCommandArgVariableByName(pVariableName, this);
 	m_Type = nType;
 	m_Data.m_AsFloat = defaultFloatValue;
 }
@@ -30,7 +30,39 @@ CommandArgVariable::CommandArgVariable(const char * pVariableName, const Command
 CommandArgVariable::CommandArgVariable(const char * pVariableName, const CommandArgVariableType::Type nType, const char * defaultCStringValue, const uint8_t flags) : m_Flags(flags) {
 	assert(nType == CommandArgVariableType::CString);
 	memset(&m_Data, 0, sizeof(m_Data));
-	CommandArgsMgr::GetInstance().RegisterCommandArgVariable(pVariableName, this);
+	CommandArgsMgr::GetInstance().RegisterCommandArgVariableByName(pVariableName, this);
+	m_Type = nType;
+	m_Data.m_AsCString = defaultCStringValue;
+}
+
+CommandArgVariable::CommandArgVariable(const uint32_t variableHash, const CommandArgVariableType::Type nType, const int defaultIntValue, const uint8_t flags /*= 0*/) : m_Flags(flags) {
+	assert(nType == CommandArgVariableType::Integer);
+	memset(&m_Data, 0, sizeof(m_Data));
+	CommandArgsMgr::GetInstance().RegisterCommandArgVariableByHash(variableHash, this);
+	m_Type = nType;
+	m_Data.m_AsInt = defaultIntValue;
+}
+
+CommandArgVariable::CommandArgVariable(const uint32_t variableHash, const CommandArgVariableType::Type nType, const bool defaultBoolValue, const uint8_t flags) : m_Flags(flags) {
+	assert(nType == CommandArgVariableType::Boolean);
+	memset(&m_Data, 0, sizeof(m_Data));
+	CommandArgsMgr::GetInstance().RegisterCommandArgVariableByHash(variableHash, this);
+	m_Type = nType;
+	m_Data.m_AsBool = defaultBoolValue;
+}
+
+CommandArgVariable::CommandArgVariable(const uint32_t variableHash, const CommandArgVariableType::Type nType, const float defaultFloatValue, const uint8_t flags) : m_Flags(flags) {
+	assert(nType == CommandArgVariableType::Float);
+	memset(&m_Data, 0, sizeof(m_Data));
+	CommandArgsMgr::GetInstance().RegisterCommandArgVariableByHash(variableHash, this);
+	m_Type = nType;
+	m_Data.m_AsFloat = defaultFloatValue;
+}
+
+CommandArgVariable::CommandArgVariable(const uint32_t variableHash, const CommandArgVariableType::Type nType, const char * defaultCStringValue, const uint8_t flags) : m_Flags(flags) {
+	assert(nType == CommandArgVariableType::CString);
+	memset(&m_Data, 0, sizeof(m_Data));
+	CommandArgsMgr::GetInstance().RegisterCommandArgVariableByHash(variableHash, this);
 	m_Type = nType;
 	m_Data.m_AsCString = defaultCStringValue;
 }
@@ -219,13 +251,11 @@ bool CommandArgsParser::IncrementTokenAndParseVector3(float & fx, float & fy, fl
 			if (!IncrementTokenAndParseFloat(fx, pDelimeters)) {
 				return false;
 			}
-		}
-		else if (v == 1) {
+		} else if (v == 1) {
 			if (!IncrementTokenAndParseFloat(fy, pDelimeters)) {
 				return false;
 			}
-		}
-		else {
+		} else {
 			if (!IncrementTokenAndParseFloat(fz, pDelimeters)) {
 				return false;
 			}
@@ -247,7 +277,11 @@ void CommandArgsParser::Reset() {
 
 /// RAII class to just setup the function from a single macro
 RegisterCommandArgFunctionAuto::RegisterCommandArgFunctionAuto(const char * pCommandName, const ConsoleCommandFunc pFunc) {
-	CommandArgsMgr::GetInstance().RegisterCommandArgFunction(pCommandName, pFunc);
+	CommandArgsMgr::GetInstance().RegisterCommandArgFunctionByName(pCommandName, pFunc);
+}
+
+RegisterCommandArgFunctionAuto::RegisterCommandArgFunctionAuto(const uint32_t commandHashValue, const ConsoleCommandFunc pFunc) {
+	CommandArgsMgr::GetInstance().RegisterCommandArgFunctionByHash(commandHashValue, pFunc);
 }
 
 CommandArgEntry::CommandArgEntry() : m_Type(CommandArgEntryType::Variable) {
@@ -283,14 +317,14 @@ void CommandArgEntry::SetType(const CommandArgEntryType::Type nType) {
 CommandArgsMgr CommandArgsMgr::ms_Instance;
 
 // Jenkins One At A Time for these hash functions
-uint32_t CommandArgsMgr::HashCommandLineArg(const char * pArgName) {
-	if (!pArgName) { return 0; }
+uint32_t CommandArgsMgr::HashCommandLineArg(const char * pString) {
+	if (!pString) { return 0; }
 	uint32_t hash = 0;
-	while (uint8_t cCur = tolower(*pArgName)) {
+	while (uint8_t cCur = tolower(*pString)) {
 		hash += cCur;
 		hash += hash << 10;
 		hash ^= hash >> 6;
-		++pArgName;
+		++pString;
 	}
 	hash += hash << 3;
 	hash ^= hash >> 11;
@@ -314,6 +348,11 @@ uint32_t CommandArgsMgr::HashCommandLineArg_StartEnd(const char * pStart, const 
 	hash ^= hash >> 11;
 	hash += hash << 15;
 	return hash;
+}
+
+uint32_t CommandArgsMgr::ValidateHashCommandValue(const char * pString, const uint32_t precalculatedHashValue) {
+	assert(HashCommandLineArg(pString) == precalculatedHashValue);
+	return precalculatedHashValue;
 }
 
 char * CommandArgsMgr::FindFirstNonWhitespaceCharacter(const char * pString, const char * pWhitespaceCharacters /*= CommandArgsParser::ms_DefaultDelimeters*/) {
@@ -342,24 +381,26 @@ char * CommandArgsMgr::FindFirstWhitespaceCharacterAfterFirstToken(const char * 
 	return pCurCharPtr;
 }
 
-uint32_t CommandArgsMgr::RegisterCommandArgVariable(const char * pArgName, CommandArgVariable * ptr) {
-	if (!ptr) { return 0; }
+void CommandArgsMgr::RegisterCommandArgVariableByName(const char * pArgName, CommandArgVariable * ptr) {
+	if (!ptr) { return; }
 	const uint32_t hashValue = HashCommandLineArg(pArgName);
 	if (hashValue == 0) {
-		return 0;
+		return;
 	}
-	std::unordered_map<uint32_t, CommandArgEntry>::const_iterator cit = m_CommandArgsMap.find(hashValue);
+	RegisterCommandArgVariableByHash(hashValue, ptr);
+}
+
+void CommandArgsMgr::RegisterCommandArgVariableByHash(const uint32_t argHashValue, CommandArgVariable * ptr) {
+	std::unordered_map<uint32_t, CommandArgEntry>::const_iterator cit = m_CommandArgsMap.find(argHashValue);
 	if (cit == m_CommandArgsMap.cend()) {
 		CommandArgEntry sNewEntry;
 		sNewEntry.SetType(CommandArgEntryType::Variable);
 		sNewEntry.SetVariable(ptr);
-		m_CommandArgsMap.insert(std::make_pair(hashValue, sNewEntry));
-		return hashValue;
+		m_CommandArgsMap.insert(std::make_pair(argHashValue, sNewEntry));
 	}
-	return 0;
 }
 
-void CommandArgsMgr::RegisterCommandArgFunction(const char * pArgName, const ConsoleCommandFunc pFunc) {
+void CommandArgsMgr::RegisterCommandArgFunctionByName(const char * pArgName, const ConsoleCommandFunc pFunc) {
 	if (!pFunc) { return; }
 	const uint32_t hashValue = HashCommandLineArg(pArgName);
 	if (hashValue == 0) {
@@ -371,6 +412,17 @@ void CommandArgsMgr::RegisterCommandArgFunction(const char * pArgName, const Con
 		sEntry.SetType(CommandArgEntryType::Function);
 		sEntry.SetFunction(pFunc);
 		m_CommandArgsMap.insert(std::make_pair(hashValue, sEntry));
+	}
+}
+
+void CommandArgsMgr::RegisterCommandArgFunctionByHash(const uint32_t commandHashValue, const ConsoleCommandFunc pFunc) {
+	if (!pFunc) { return; }
+	std::unordered_map<uint32_t, CommandArgEntry>::const_iterator cit = m_CommandArgsMap.find(commandHashValue);
+	if (cit == m_CommandArgsMap.cend()) {
+		CommandArgEntry sEntry;
+		sEntry.SetType(CommandArgEntryType::Function);
+		sEntry.SetFunction(pFunc);
+		m_CommandArgsMap.insert(std::make_pair(commandHashValue, sEntry));
 	}
 }
 
@@ -465,8 +517,7 @@ int CommandArgsMgr::Execute(const char * pCommand) {
 	if (!pSpaceCharPtr || !(*pSpaceCharPtr)) {
 		key = HashCommandLineArg(pCommand);
 		expectsFlag = true;
-	}
-	else {
+	} else {
 		key = HashCommandLineArg_StartEnd(pCommand, pSpaceCharPtr);
 	}
 	// Expect variables/commands to be initliazed already
@@ -487,8 +538,7 @@ int CommandArgsMgr::Execute(const char * pCommand) {
 		CommandArgsParser argsParser;
 		argsParser.InitWithArgs(pArgRHSString);
 		return (*pFunc)(argsParser);
-	}
-	else if (entryType == CommandArgEntryType::Variable) {
+	} else if (entryType == CommandArgEntryType::Variable) {
 		// Parse the variable and set the tagged variant appropriately
 		CommandArgVariable * pCommandArgVariable = rEntry.GetVariable();
 		if (!pCommandArgVariable) {
@@ -538,5 +588,3 @@ bool CommandArgsMgr::FindCommandArgEntry(std::unordered_map<uint32_t, CommandArg
 	inOutIterator = m_CommandArgsMap.find(key);
 	return inOutIterator != m_CommandArgsMap.end();
 }
-
-
